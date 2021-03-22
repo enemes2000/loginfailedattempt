@@ -1,0 +1,11 @@
+{
+  "namespace": "com.github.enemes2000",
+  "type": "record",
+  "name": "Login",
+  "fields": [
+    {"name": "username", "type": "string"},
+    {"name": "ipadress", "type": "string"},
+    {"name": "loginattempt", "type": "int"},
+    {"name": "timestamp", "type": "string"}
+  ]
+}
