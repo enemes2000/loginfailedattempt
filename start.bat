@@ -1,4 +1,6 @@
 @echo off
+
+
 echo "Take down the containers"
 docker-compose down
 
@@ -23,13 +25,9 @@ docker exec --interactive  schema-registry bash "/tmp/scripts/loadData.sh"
 
 cd %src.dir%
 
-REM Shutdown the application
-curl -X POST http://localhost:%app.port%/shutdown
 
 echo "Package the application and launch the application..."
-mvn clean package && mvn exec:java -Dexec.mainClass="%main.class%" 
-REM mvn clean package && mvn spring-boot:start
-
+mvn spring-boot:run -Dspring-boot.run.profiles=%profile% && mvn exec:java -Dexec.mainClass="%main.class%" 
 
 pause
 exit /B

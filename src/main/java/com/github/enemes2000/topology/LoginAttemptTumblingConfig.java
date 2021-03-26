@@ -1,10 +1,9 @@
 package com.github.enemes2000.topology;
 
 import com.github.enemes2000.Login;
+import com.github.enemes2000.helper.ConfigLoaderHelper;
 import com.github.enemes2000.model.LoginFailCount;
 import com.github.enemes2000.serdes.JsonSerdes;
-import com.github.enemes2000.service.LoginAttemptService;
-import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.ListTopicsResult;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -19,16 +18,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.env.Environment;
 
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-import static io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
-
 @Configuration
+@Profile(value = "dev")
 public class LoginAttemptTumblingConfig {
 
     Logger LOGGER = LoggerFactory.getLogger(LoginAttemptTumblingConfig.class);
@@ -42,55 +42,27 @@ public class LoginAttemptTumblingConfig {
         return streams;
     }
 
-
     public void setStreams(KafkaStreams streams) {
         this.streams = streams;
     }
 
     private KafkaStreams streams;
 
-
-    private Properties getConfig(String endpoint, String stateDir) {
-        Properties props = new Properties();
-
-        props.put(StreamsConfig.APPLICATION_ID_CONFIG, env.getProperty("application.id"));
-        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, env.getProperty("bootstrap.servers"));
-        props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
-        props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, SpecificAvroSerde.class);
-        props.put(SCHEMA_REGISTRY_URL_CONFIG, env.getProperty("schema.registry.url"));
-        props.put(StreamsConfig.DEFAULT_TIMESTAMP_EXTRACTOR_CLASS_CONFIG, LoginTimestampExtractor.class.getName());
-        props.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
-        props.put(StreamsConfig.APPLICATION_SERVER_CONFIG, endpoint);
-        props.put(StreamsConfig.STATE_DIR_CONFIG, stateDir);
-
-        return props;
-    }
-
-    @Bean
-    public Topology buildTopology(){
+    public Topology buildTopology(Properties properties){
         final StreamsBuilder builder = new StreamsBuilder();
-        final String loginTopic = env.getProperty("login.topic.name");
-        final String failAttemptCountTopic = env.getProperty("failattempt.count.topic.name");
 
-        /*
-         This is just for testing purpose
-         */
-        try{
-            createTopics();
-        }catch(ExecutionException|InterruptedException ex){
-                throw new RuntimeException(ex);
-        }
+        final String loginTopic = properties.getProperty("input.topic");
 
-        LOGGER.info("Starting the building of the topology");
+        final String failAttemptCountTopic = properties.getProperty("output.topic");
+
+        LOGGER.info("Topology build");
         KStream<String, Login> loginStream = builder.<String, Login>stream(loginTopic)
-                .map((key, login) -> new KeyValue<>(login.getUsername().toString(), login));
+                .map(LoginAttemptTumblingConfig::getLoginKeyValueKeyValueMapper);
 
 
-        KStream<String, LoginFailCount>  failCountKStream= loginStream.mapValues(v -> new LoginFailCount(
-                v.getUsername().toString(),
-                v.getLoginattempt(),
-                v.getIpadress().toString()) );
+        KStream<String, LoginFailCount>  failCountKStream= loginStream.mapValues(LoginAttemptTumblingConfig::getLoginFailCountValueMapper);
 
+        //How to print a stream
         //failCountKStream.print(Printed.<String, LoginFailCount>toSysOut().withLabel("FailcountKStream"));
 
         KGroupedStream<String, Login> loginKGroupedStream =  loginStream.groupByKey();
@@ -100,7 +72,12 @@ public class LoginAttemptTumblingConfig {
          */
         TimeWindowedKStream<String, Login> loginTimeWindowedKStream = loginKGroupedStream
                 .windowedBy(TimeWindows.of(Duration.ofSeconds(10))
-                .grace(Duration.ofSeconds(5)));
+                .grace(Duration.ofMillis(5)));
+
+
+        if (STORE_NAME == null){
+            setStoreName(properties.getProperty("store.name"));
+        }
 
         /*
          * Examples of how to use other windows operations
@@ -117,25 +94,45 @@ public class LoginAttemptTumblingConfig {
          */
 
         KTable<Windowed<String>, Login> loginFailCountKTable = loginTimeWindowedKStream.reduce(
-                (x,y) -> Login
-                        .newBuilder()
-                        .setUsername(y.getUsername())
-                        .setLoginattempt(x.getLoginattempt() + y.getLoginattempt())
-                        .setIpadress(y.getIpadress())
-                        .setTimestamp(y.getTimestamp())
-                        .build()
-                ,Materialized.<String, Login, WindowStore<Bytes, byte[]>>
+                LoginAttemptTumblingConfig::getLoginReducer
+                , Materialized.<String, Login, WindowStore<Bytes, byte[]>>
                         as(STORE_NAME)
                         .withKeySerde(Serdes.String())
-                        .withValueSerde(JsonSerdes.Login()));
+                        .withValueSerde(JsonSerdes.Login()))
+                .suppress(Suppressed.untilWindowCloses(Suppressed.BufferConfig.unbounded().shutDownWhenFull()));
+
 
         loginFailCountKTable.toStream()
-                .map((key,count) -> new KeyValue<>(key.key(), count.toString()))
+                .map(LoginAttemptTumblingConfig::getKeyValue)
                 .to(failAttemptCountTopic, Produced.with(Serdes.String(), Serdes.String()));
 
         LOGGER.info("Ending building of the topology");
         return builder.build();
     }
+
+    public static KeyValue<String, String> getKeyValue(Windowed<String> key, Login login){
+        return KeyValue.pair(key.key(), login.toString());
+    }
+
+    public static Login getLoginReducer(Login x, Login y){
+        return Login
+                .newBuilder()
+                .setUsername(y.getUsername())
+                .setLoginattempt(x.getLoginattempt() + y.getLoginattempt())
+                .setIpadress(y.getIpadress())
+                .setTimestamp(y.getTimestamp())
+                .build();
+    }
+
+
+    public static LoginFailCount getLoginFailCountValueMapper(Login login) {
+        return new LoginFailCount(login.getUsername().toString(), login.getLoginattempt(), login.getIpadress().toString());
+    }
+
+    public static KeyValue<String,Login> getLoginKeyValueKeyValueMapper(String key, Login login) {
+        return KeyValue.pair(login.getUsername().toString(), login);
+    }
+
 
     public void createTopics() throws ExecutionException, InterruptedException {
         Map<String, Object> config = new HashMap<>();
@@ -170,17 +167,18 @@ public class LoginAttemptTumblingConfig {
     }
 
     @Bean
-    public KafkaStreams KafkaStreams(){
+    public KafkaStreams KafkaStreams() throws IOException, ExecutionException, InterruptedException {
 
-        String host = env.getProperty("server.host");
-        int port = Integer.parseInt(env.getProperty("server.port"));
-        String stateDir = env.getProperty("app.stateDir");
+        Properties props = ConfigLoaderHelper.getConfig(env);
 
-        String endpoint = String.format("%s:%s", host, port);
+        /*
+         This just for testing purpose
+         */
+        createTopics();
 
-        Properties properties = getConfig(endpoint, stateDir);
+        Topology topology = buildTopology(props);
 
-        final  KafkaStreams kafkaStreams = new KafkaStreams(buildTopology(), properties);
+        final  KafkaStreams kafkaStreams = new KafkaStreams(topology, props);
 
         Runtime.getRuntime().addShutdownHook(new Thread(kafkaStreams::close));
 

@@ -16,7 +16,8 @@ public class LoginTimestampExtractorTest {
     public void testTimestampExtraction() {
        LoginTimestampExtractor loginTimestampExtractor = new LoginTimestampExtractor();
 
-        Login login = Login.newBuilder().setUsername("jean").setLoginattempt(1).setIpadress("192.13.12.15").setTimestamp("2021-03-17T09:02:00.000Z").build();
+       Login login = Login.newBuilder().setUsername("jean").setLoginattempt(1).setIpadress("192.13.12.15").setTimestamp("2021-03-17T09:02:00.000Z").build();
+
         ConsumerRecord<Object, Object> record = new ConsumerRecord<>("login", 0, 1, "mike", login);
 
         long timestamp = loginTimestampExtractor.extract(record, 0);

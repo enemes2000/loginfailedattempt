@@ -1,7 +1,6 @@
 package com.github.enemes2000.service;
 
 import com.github.enemes2000.Login;
-import com.github.enemes2000.controller.LoginAttemptFailController;
 import com.github.enemes2000.model.LoginFailCount;
 import com.github.enemes2000.topology.LoginAttemptTumblingConfig;
 import org.apache.kafka.common.serialization.Serdes;
@@ -9,13 +8,14 @@ import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.KeyQueryMetadata;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StoreQueryParameters;
+import org.apache.kafka.streams.kstream.Window;
+import org.apache.kafka.streams.kstream.Windowed;
 import org.apache.kafka.streams.state.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
-import org.springframework.context.annotation.PropertySource;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -25,6 +25,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+@Profile("dev")
 public class LoginAttemptService {
 
     Logger LOGGER = LoggerFactory.getLogger(LoginAttemptService.class);
@@ -38,14 +39,13 @@ public class LoginAttemptService {
     @Value("${store.name}")
     private String STORE_NAME;
 
-
-    public List<LoginFailCount> getLoginFailCount(String username) {
+    public List<LoginFailCount> getLoginFailCount(String username, String from, String to) {
 
         LOGGER.info("Get the  streams");
         KafkaStreams streams = config.getStreams();
 
         LOGGER.info("Get the  store");
-        ReadOnlyWindowStore<String, Login> store = getStore(streams);
+        ReadOnlyWindowStore<String, Login> store = getQueryableStore(streams);
 
         KeyQueryMetadata metadata =
                 streams.queryMetadataForKey(STORE_NAME, username, Serdes.String().serializer());
@@ -55,9 +55,9 @@ public class LoginAttemptService {
         List<Login> loginFailCounts = new ArrayList<>();
 
         if (hostInfo.equals(metadata.getActiveHost())) {
-            //This is just for testing purpose
-            Instant fromTime = Instant.parse("2021-03-17T09:02:00.000Z");
-            Instant toTime = Instant.parse("2021-03-17T09:02:02.500Z");
+
+            Instant fromTime = Instant.parse(from);
+            Instant toTime = Instant.parse(to);
 
             LOGGER.info("Build the windowstore iterator for range from: %s - to: %s", fromTime, toTime);
             WindowStoreIterator<Login> range = store.fetch(username, fromTime, toTime);
@@ -72,6 +72,7 @@ public class LoginAttemptService {
                 if (login != null)
                     loginFailCounts.add(login);
             }
+            range.close();
         }
         else {
             //If a remote instance has the key
@@ -91,23 +92,40 @@ public class LoginAttemptService {
 
 
 
-    ReadOnlyWindowStore<String, Login> getStore(KafkaStreams streams) {
-
+    ReadOnlyWindowStore<String, Login> getQueryableStore(KafkaStreams streams) {
         return streams.store(
                 StoreQueryParameters.fromNameAndType(
-                        STORE_NAME,
-                        QueryableStoreTypes.windowStore()));
+                        STORE_NAME, QueryableStoreTypes.windowStore()));
     }
 
-    /*
-    Build a Treeset of LoginFailCount form login objects that will be exposed to the controller
-     */
-    private List<LoginFailCount> failCounts(Collection<Login> logins){
-        Set<LoginFailCount> failCounts = new TreeSet<>();
-        for (Login login : logins){
-            failCounts.add(new LoginFailCount(login.getUsername(), login.getLoginattempt(), login.getIpadress()));
-        }
 
-        return failCounts.stream().collect(Collectors.toList());
+    private List<LoginFailCount> failCounts(Collection<Login> logins){
+
+       return logins.stream().map(x-> new LoginFailCount(x.getUsername(), x.getLoginattempt(), x.getIpadress()))
+                       .collect(Collectors.toList());
+
+    }
+
+    public List<LoginFailCount> getAllFromRange(String from, String to){
+        LOGGER.info("Get the  streams");
+        KafkaStreams streams = config.getStreams();
+
+        LOGGER.info("Get the  store");
+        ReadOnlyWindowStore<String, Login> store = getQueryableStore(streams);
+
+        Instant fromTime = Instant.parse(from);
+        Instant toTime = Instant.parse(to);
+        KeyValueIterator<Windowed<String>, Login> range = store.fetchAll(fromTime, toTime);
+        List<Login> loginFailCounts = new ArrayList<>();
+        while (range.hasNext()){
+            KeyValue<Windowed<String>, Login> next = range.next();
+            String key = next.key.key();
+            Window window = next.key.window();
+            Login login = next.value;
+            if (login != null)
+                loginFailCounts.add(login);
+        }
+        range.close();
+        return failCounts(loginFailCounts);
     }
 }
