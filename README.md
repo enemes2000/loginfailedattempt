@@ -9,7 +9,7 @@ Login fail attempt count detection: This project counts the number of failed att
 * Docker Confluent Platform 
 
 ## Getting started
-Running the application with the dev profile:
+Running the application with the **dev profile**:
   * In the **init.properties** file:
     * Change the value of the parameter **profile** to **dev** if it is not done already
     * Update the src.dir with the path of the source code where you intend to clone the project
