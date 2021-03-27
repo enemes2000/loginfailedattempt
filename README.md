@@ -6,7 +6,7 @@ Login fail attempt count detection: This project counts the number of failed att
 * Kafka Stream API
 * Spring Boot
 * Maven
-* Doker Confluent Platform 
+* Docker Confluent Platform 
 
 ## Getting started
 Running the application with the dev profile:
