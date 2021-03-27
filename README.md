@@ -49,3 +49,11 @@ You should see this result
 * Maven
 * Docker Compose
 
+## Running the tests
+* Change the **profile** variable to **test** in the **init.properties** file
+* Launch your test by typing on your command line console
+
+```bash
+start.bat
+```
+
