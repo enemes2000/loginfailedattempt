@@ -1,6 +1,6 @@
 # Project Title
 
-Login fail attempt count detection: This project counts the number of failed attempt done by a particular username to log in into a system. It uses Kafka Streams and performs a windowed aggregation.
+Login fail attempt count detection: This project counts the number of failed attempt done by a particular username to log in into a system. It uses **Kafka Streams** and performs a **windowed aggregation**.
 
 # Built With
 * Kafka Stream API
