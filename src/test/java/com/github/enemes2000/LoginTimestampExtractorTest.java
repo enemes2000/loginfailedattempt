@@ -2,8 +2,9 @@ package com.github.enemes2000;
 
 import com.github.enemes2000.topology.LoginTimestampExtractor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.junit.runner.RunWith;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Profile;
 import org.springframework.test.context.junit4.SpringRunner;
 
@@ -11,7 +12,9 @@ import static org.junit.Assert.assertEquals;
 
 @Profile("Test")
 @RunWith(SpringRunner.class)
+@SpringBootTest
 public class LoginTimestampExtractorTest {
+
     @Test
     public void testTimestampExtraction() {
        LoginTimestampExtractor loginTimestampExtractor = new LoginTimestampExtractor();

@@ -59,7 +59,7 @@ public class LoginAttemptService {
             Instant fromTime = Instant.parse(from);
             Instant toTime = Instant.parse(to);
 
-            LOGGER.info("Build the windowstore iterator for range from: %s - to: %s", fromTime, toTime);
+            LOGGER.info("Build the windowstore iterator for range from: {} - to: {}", fromTime, toTime);
             WindowStoreIterator<Login> range = store.fetch(username, fromTime, toTime);
 
             while (range.hasNext()){

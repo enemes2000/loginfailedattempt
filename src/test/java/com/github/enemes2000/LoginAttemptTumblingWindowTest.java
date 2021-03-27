@@ -13,8 +13,9 @@ import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.streams.*;
 import org.junit.Before;
-import org.junit.Test;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,9 +33,9 @@ import java.util.stream.Collectors;
 import static org.junit.Assert.assertTrue;
 
 
+@Profile("Test")
 @RunWith(SpringRunner.class)
 @SpringBootTest
-@Profile("test")
 public class LoginAttemptTumblingWindowTest {
 
     @Autowired
@@ -51,7 +52,7 @@ public class LoginAttemptTumblingWindowTest {
     private List<Login> loginList;
 
 
-    @Before
+    @BeforeEach
     public void setup(){
 
         loginAttemptTumblingConfig = new LoginAttemptTumblingConfig();

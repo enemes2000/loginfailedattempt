@@ -18,7 +18,7 @@ public class LoginTimestampExtractor implements TimestampExtractor {
 
         String eventTime = ((Login)record.value()).getTimestamp().toString();
 
-        LOGGER.info("parsing the EventTime %s", eventTime);
+        LOGGER.info("parsing the EventTime {}", eventTime);
         return Instant.parse(eventTime).toEpochMilli();
 
     }
