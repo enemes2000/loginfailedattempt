@@ -25,7 +25,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
-@Profile("dev")
+@Profile({"dev | prod"})
 public class LoginAttemptService {
 
     Logger LOGGER = LoggerFactory.getLogger(LoginAttemptService.class);

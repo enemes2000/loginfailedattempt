@@ -1,0 +1,30 @@
+#Used for all profiles
+logging:
+  level:
+    org.springframework: INFO
+
+#'Used for 'dev' profile
+---
+bootstrap.servers: localhost:9092
+schema.registry.url: http://localhost:8081
+spring.profiles.active: dev
+#Used for 'prod' profile
+---
+spring:
+  config:
+    activate:
+      on-profile:
+        - prod
+bootstrap.servers: xx.xx.xx.xx:9092
+schema.registry.url: http://xx.xx.xx.xx:8081
+
+
+#Used for 'test' profile
+---
+spring:
+  config:
+    activate:
+      on-profile:
+        - test
+bootstrap.servers: dummy:1234
+schema.registry.url: mock://test:8081

@@ -20,7 +20,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/login")
-@Profile("dev")
+@Profile({"dev | prod"})
 public class LoginAttemptFailController {
     Logger LOGGER = LoggerFactory.getLogger(LoginAttemptFailController.class);
 

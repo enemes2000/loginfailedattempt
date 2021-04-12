@@ -28,7 +28,7 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 @Configuration
-@Profile(value = "dev")
+@Profile({"dev | prod"})
 public class LoginAttemptTumblingConfig {
 
     Logger LOGGER = LoggerFactory.getLogger(LoginAttemptTumblingConfig.class);
